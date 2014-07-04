@@ -58,11 +58,11 @@
         <provider
             android:exported="true"
             android:name="org.odk.collect.android.provider.FormsProvider"
-            android:authorities="org.odk.collect.android.provider.odk.forms" />
+            android:authorities="org.odk.collect.android.provider.odk.forms.smap" />
         <provider
             android:exported="true"
             android:name="org.odk.collect.android.provider.InstanceProvider"
-            android:authorities="org.odk.collect.android.provider.odk.instances" />
+            android:authorities="org.odk.collect.android.provider.odk.instances.smap" />
 
         <activity
             android:name=".activities.MainMenuActivity"
