@@ -1,11 +1,11 @@
 /*
  * Copyright (C) 2009 University of Washington
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -14,6 +14,7 @@
 
 package org.odk.collect.android.utilities;
 
+import org.apache.commons.io.IOUtils;
 import org.javarosa.xform.parse.XFormParser;
 import org.kxml2.kdom.Document;
 import org.kxml2.kdom.Element;
@@ -22,6 +23,8 @@ import org.kxml2.kdom.Node;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Log;
+import org.odk.collect.android.R;
+import org.odk.collect.android.application.Collect;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,7 +42,7 @@ import java.util.HashMap;
 
 /**
  * Static methods used for common file operations.
- * 
+ *
  * @author Carl Hartung (carlhartung@gmail.com)
  */
 public class FileUtils {
@@ -54,7 +57,7 @@ public class FileUtils {
     public static final String SUBMISSIONURI = "submission";
     public static final String BASE64_RSA_PUBLIC_KEY = "base64RsaPublicKey";
 
-    
+
     public static boolean createFolder(String path) {
         boolean made = true;
         File dir = new File(path);
@@ -209,28 +212,56 @@ public class FileUtils {
     }
 
 
-    public static void copyFile(File sourceFile, File destFile) {
+    public static String copyFile(File sourceFile, File destFile) {
         if (sourceFile.exists()) {
-            FileChannel src;
-            try {
-                src = new FileInputStream(sourceFile).getChannel();
-                FileChannel dst = new FileOutputStream(destFile).getChannel();
-                dst.transferFrom(src, 0, src.size());
-                src.close();
-                dst.close();
-            } catch (FileNotFoundException e) {
-                Log.e(t, "FileNotFoundExeception while copying audio");
-                e.printStackTrace();
-            } catch (IOException e) {
-                Log.e(t, "IOExeception while copying audio");
-                e.printStackTrace();
+            String errorMessage = actualCopy(sourceFile, destFile);
+            if (errorMessage != null) {
+                try {
+                    Thread.sleep(500);
+                    Log.e(t, "Retrying to copy the file after 500ms: " + sourceFile.getAbsolutePath());
+                    errorMessage = actualCopy(sourceFile, destFile);
+                } catch (InterruptedException e) {
+                    Log.e(t, e.getMessage(), e);
+                }
             }
+            return errorMessage;
         } else {
-            Log.e(t, "Source file does not exist: " + sourceFile.getAbsolutePath());
+            String msg = "Source file does not exist: " + sourceFile.getAbsolutePath();
+            Log.e(t, msg);
+            return msg;
         }
-
     }
-    
+
+    private static String actualCopy(File sourceFile, File destFile) {
+        FileInputStream fileInputStream = null;
+        FileOutputStream fileOutputStream = null;
+        FileChannel src = null;
+        FileChannel dst = null;
+        try {
+            fileInputStream = new FileInputStream(sourceFile);
+            src = fileInputStream.getChannel();
+            fileOutputStream = new FileOutputStream(destFile);
+            dst = fileOutputStream.getChannel();
+            dst.transferFrom(src, 0, src.size());
+            dst.force(true);
+            return null;
+        } catch (FileNotFoundException e) {
+            Log.e(t, "FileNotFoundException while copying file", e);
+            return e.getMessage();
+        } catch (IOException e) {
+            Log.e(t, "IOException while copying file", e);
+            return e.getMessage();
+        } catch (Exception e) {
+            Log.e(t, "Exception while copying file", e);
+            return e.getMessage();
+        } finally {
+            IOUtils.closeQuietly(fileInputStream);
+            IOUtils.closeQuietly(fileOutputStream);
+            IOUtils.closeQuietly(src);
+            IOUtils.closeQuietly(dst);
+        }
+    }
+
     public static HashMap<String, String> parseXML(File xmlFile) {
         HashMap<String, String> fields = new HashMap<String, String>();
         InputStream is;
@@ -253,10 +284,10 @@ public class FileUtils {
             Document doc;
             try {
                 doc = XFormParser.getXMLDocument(isr);
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw new IllegalStateException("Unable to parse XML document", e);
-            } finally {
+            } catch (IOException e) {
+				e.printStackTrace();
+				throw new IllegalStateException("Unable to parse XML document", e);
+			} finally {
                 try {
                     isr.close();
                 } catch (IOException e) {
@@ -267,16 +298,16 @@ public class FileUtils {
 
             String xforms = "http://www.w3.org/2002/xforms";
             String html = doc.getRootElement().getNamespace();
-            
+
             Element head = doc.getRootElement().getElement(html, "head");
             Element title = head.getElement(html, "title");
             if (title != null) {
                 fields.put(TITLE, XFormParser.getXMLText(title, true));
-            } 
-            
+            }
+
             Element model = getChildElement(head, "model");
             Element cur = getChildElement(model,"instance");
-            
+
             int idx = cur.getChildCount();
             int i;
             for (i = 0; i < idx; ++i) {
@@ -291,7 +322,7 @@ public class FileUtils {
                 cur = cur.getElement(i); // this is the first data element
                 String id = cur.getAttributeValue(null, "id");
                 String xmlns = cur.getNamespace();
-                
+
                 String version = cur.getAttributeValue(null, "version");
                 String uiVersion = cur.getAttributeValue(null, "uiVersion");
                 if ( uiVersion != null ) {
@@ -310,7 +341,7 @@ public class FileUtils {
                 fields.put(SUBMISSIONURI, (submissionUri == null) ? null : submissionUri);
                 String base64RsaPublicKey = submission.getAttributeValue(null, "base64RsaPublicKey");
                 fields.put(BASE64_RSA_PUBLIC_KEY,
-                  (base64RsaPublicKey == null || base64RsaPublicKey.trim().length() == 0) 
+                  (base64RsaPublicKey == null || base64RsaPublicKey.trim().length() == 0)
                   ? null : base64RsaPublicKey.trim());
             } catch (Exception e) {
                 Log.i(t, xmlFile.getAbsolutePath() + " does not have a submission element");
@@ -334,5 +365,66 @@ public class FileUtils {
             }
         }
         return e;
+    }
+
+    public static void deleteAndReport(File file) {
+        if (file != null && file.exists()) {
+            // remove garbage
+            if (!file.delete()) {
+                Log.w(t, file.getAbsolutePath() + " will be deleted upon exit.");
+                file.deleteOnExit();
+            } else {
+                Log.w(t, file.getAbsolutePath() + " has been deleted.");
+            }
+        }
+    }
+
+    public static String constructMediaPath(String formFilePath) {
+        String pathNoExtension = formFilePath.substring(0, formFilePath.lastIndexOf("."));
+        return pathNoExtension + "-media";
+    }
+
+    /**
+     * @param mediaDir the media folder
+     */
+    public static void checkMediaPath(File mediaDir) {
+        if (mediaDir.exists() && mediaDir.isFile()) {
+            Log.e(t, "The media folder is already there and it is a FILE!! We will need to delete it and create a folder instead");
+            boolean deleted = mediaDir.delete();
+            if (!deleted) {
+                throw new RuntimeException(Collect.getInstance().getString(R.string.fs_delete_media_path_if_file_error, mediaDir.getAbsolutePath()));
+            }
+        }
+
+        // the directory case
+        boolean createdOrExisted = createFolder(mediaDir.getAbsolutePath());
+        if (!createdOrExisted) {
+            throw new RuntimeException(Collect.getInstance().getString(R.string.fs_create_media_folder_error, mediaDir.getAbsolutePath()));
+        }
+    }
+
+    public static void purgeMediaPath(String mediaPath) {
+        File tempMediaFolder = new File(mediaPath);
+        File[] tempMediaFiles = tempMediaFolder.listFiles();
+        if (tempMediaFiles == null || tempMediaFiles.length == 0) {
+            deleteAndReport(tempMediaFolder);
+        } else {
+            for (File tempMediaFile : tempMediaFiles) {
+                deleteAndReport(tempMediaFile);
+            }
+        }
+    }
+
+    public static void moveMediaFiles(String tempMediaPath, File formMediaPath) throws IOException {
+        File tempMediaFolder = new File(tempMediaPath);
+        File[] mediaFiles = tempMediaFolder.listFiles();
+        if (mediaFiles == null || mediaFiles.length == 0) {
+            deleteAndReport(tempMediaFolder);
+        } else {
+            for (File mediaFile : mediaFiles) {
+                org.apache.commons.io.FileUtils.moveFileToDirectory(mediaFile, formMediaPath, true);
+            }
+            deleteAndReport(tempMediaFolder);
+        }
     }
 }
