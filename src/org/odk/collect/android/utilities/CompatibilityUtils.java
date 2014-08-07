@@ -14,12 +14,12 @@
 
 package org.odk.collect.android.utilities;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.os.Build;
-import android.util.Log;
 import android.view.MenuItem;
 
 /**
@@ -28,18 +28,18 @@ import android.view.MenuItem;
  * @author mitchellsundt@gmail.com
  *
  */
+@SuppressLint("NewApi")
 public class CompatibilityUtils {
 	public static void setShowAsAction(MenuItem item, int action) {
-		Log.i("setShowaction: ", String.valueOf(Build.VERSION.SDK_INT));
 		if ( Build.VERSION.SDK_INT >= 11 ) {
-			Log.i("setShowAsAction: ", item.toString());
 			item.setShowAsAction(action);
 		}
 	}
 
 	public static void invalidateOptionsMenu(final Activity a) {
 		if ( Build.VERSION.SDK_INT >= 11 ) {
-			a.runOnUiThread(new Runnable() {
+			a.runOnUiThread(
+					new Runnable() {
 
 				@Override
 				public void run() {
