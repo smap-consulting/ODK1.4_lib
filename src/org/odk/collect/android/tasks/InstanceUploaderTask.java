@@ -115,7 +115,7 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
         } else {
 
             // if https then enable preemptive basic auth...
-            if ( u.getScheme().equals("https") ) {
+            if ( u.getScheme() != null && u.getScheme().equals("https") ) {
             	WebUtils.enablePreemptiveBasicAuth(localContext, u.getHost());
             }
 
@@ -255,7 +255,9 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
                 e.printStackTrace();
                 Log.e(t, e.toString());
                 WebUtils.clearHttpConnectionManager();
-                outcome.mResults.put(id, fail + "Generic Exception");
+                String msg = e.getMessage();
+                if ( msg == null ) msg = e.toString();
+                outcome.mResults.put(id, fail + "Generic Exception: " + msg);
                 // cv.put(InstanceColumns.STATUS, InstanceProviderAPI.STATUS_SUBMISSION_FAILED); smap
                 Collect.getInstance().getContentResolver().update(toUpdate, cv, null, null);
                 return true;
@@ -475,7 +477,9 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
                 e.printStackTrace();
                 Log.e(t, e.toString());
                 WebUtils.clearHttpConnectionManager();
-                outcome.mResults.put(id, fail + "Generic Exception. " + e.toString());
+                String msg = e.getMessage();
+                if ( msg == null ) msg = e.toString();
+                outcome.mResults.put(id, fail + "Generic Exception. " + msg);
                 // cv.put(InstanceColumns.STATUS, InstanceProviderAPI.STATUS_SUBMISSION_FAILED); smap
                 Collect.getInstance().getContentResolver().update(toUpdate, cv, null, null);
                 return true;
