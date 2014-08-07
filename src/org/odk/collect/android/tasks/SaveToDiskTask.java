@@ -13,6 +13,7 @@
  */
 
 package org.odk.collect.android.tasks;
+import org.odk.collect.android.R;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -461,6 +462,7 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
         synchronized (this) {
             if (mSavedListener != null && result != null) {
                 mSavedListener.savingComplete(result, mTaskId);		// smap added mTaskId
+            }
         }
     }
 
