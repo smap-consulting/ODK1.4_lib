@@ -530,21 +530,21 @@ public class DownloadFormsTask extends
         }
     }
 
-    private static class FileResult {
+    public static class FileResult {		// smap make public
 
         private final File file;
         private final boolean isNew;
 
-        private FileResult(File file, boolean aNew) {
+        public FileResult(File file, boolean aNew) {	// smap make public
             this.file = file;
             isNew = aNew;
         }
 
-        private File getFile() {
+        public File getFile() {				// smap make public
             return file;
         }
 
-        private boolean isNew() {
+        public boolean isNew() {			// smap make public
             return isNew;
         }
     }
