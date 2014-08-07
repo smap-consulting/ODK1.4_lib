@@ -14,20 +14,18 @@
 
 package org.odk.collect.android.tasks;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.javarosa.core.model.FormDef;
 import org.javarosa.core.model.FormIndex;
 import org.javarosa.core.model.condition.EvaluationContext;
+import org.javarosa.core.model.instance.InstanceInitializationFactory;
 import org.javarosa.core.model.instance.TreeElement;
 import org.javarosa.core.model.instance.TreeReference;
+import org.javarosa.core.model.instance.utils.DefaultAnswerResolver;
 import org.javarosa.core.reference.ReferenceManager;
 import org.javarosa.core.reference.RootTranslator;
 import org.javarosa.core.services.PrototypeManager;
@@ -39,18 +37,23 @@ import org.javarosa.model.xform.XFormsModule;
 import org.javarosa.xform.parse.XFormParseException;
 import org.javarosa.xform.parse.XFormParser;
 import org.javarosa.xform.util.XFormUtils;
+import org.javarosa.xpath.XPathTypeMismatchException;
+import org.odk.collect.android.R;
 import org.odk.collect.android.application.Collect;
 import org.odk.collect.android.database.ItemsetDbAdapter;
+import org.odk.collect.android.external.*;
 import org.odk.collect.android.listeners.FormLoaderListener;
 import org.odk.collect.android.logic.FileReferenceFactory;
 import org.odk.collect.android.logic.FormController;
 import org.odk.collect.android.utilities.FileUtils;
+import org.odk.collect.android.external.handler.ExternalDataHandlerPull;
 
 import android.content.Intent;
 import android.database.Cursor;
 import android.os.AsyncTask;
 import android.util.Log;
-//import au.com.bytecode.opencsv.CSVReader;	Sma disable
+import au.com.bytecode.opencsv.CSVReader;
+import org.odk.collect.android.utilities.ZipUtils;
 
 /**
  * Background task for loading a form.
@@ -76,6 +79,8 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 			"org.javarosa.core.model.data.DateTimeData", // CoreModelModule
 			"org.javarosa.core.model.data.DecimalData", // CoreModelModule
 			"org.javarosa.core.model.data.GeoPointData", // CoreModelModule
+			"org.javarosa.core.model.data.GeoShapeData", // CoreModelModule
+			"org.javarosa.core.model.data.GeoTraceData", // CoreModelModule
 			"org.javarosa.core.model.data.IntegerData", // CoreModelModule
 			"org.javarosa.core.model.data.LongData", // CoreModelModule
 			"org.javarosa.core.model.data.MultiPointerAnswerData", // CoreModelModule
@@ -85,8 +90,12 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 			"org.javarosa.core.model.data.StringData", // CoreModelModule
 			"org.javarosa.core.model.data.TimeData", // CoreModelModule
 			"org.javarosa.core.model.data.UncastData", // CoreModelModule
-			"org.javarosa.core.model.data.helper.BasicDataPointer" // CoreModelModule
+			"org.javarosa.core.model.data.helper.BasicDataPointer", // CoreModelModule
+			"org.javarosa.core.model.data.helper.BasicDataPointer", // CoreModelModule
+			"org.javarosa.core.model.Action", // CoreModelModule
+			"org.javarosa.core.model.actions.SetValueAction" // CoreModelModule
     };
+    private static final String ITEMSETS_CSV = "itemsets.csv";
 
     private static boolean isJavaRosaInitialized = false;
     /**
@@ -112,13 +121,14 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 
     private FormLoaderListener mStateListener;
     private String mErrorMsg;
-    private final String mInstancePath;
+    private String mInstancePath;
     private final String mXPath;
     private final String mWaitingXPath;
     private boolean pendingActivityResult = false;
     private int requestCode = 0;
     private int resultCode = 0;
     private Intent intent = null;
+    private ExternalDataManager externalDataManager;
 
     protected class FECWrapper {
         FormController controller;
@@ -171,6 +181,8 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 
         initializeJavaRosa();
 
+        publishProgress(Collect.getInstance().getString(R.string.survey_loading_reading_form_message));
+
         if (formBin.exists()) {
             // if we have binary, deserialize binary
             Log.i(
@@ -206,15 +218,40 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
             } catch (Exception e) {
                 mErrorMsg = e.getMessage();
                 e.printStackTrace();
+            } finally {
+                IOUtils.closeQuietly(fis);
             }
         }
 
-        if (mErrorMsg != null) {
+        if (mErrorMsg != null || fd == null) {
             return null;
         }
 
+        // set paths to /sdcard/odk/forms/formfilename-media/
+        String formFileName = formXml.getName().substring(0, formXml.getName().lastIndexOf("."));
+        File formMediaDir = new File( formXml.getParent(), formFileName + "-media");
+
+        externalDataManager = new ExternalDataManagerImpl(formMediaDir);
+
         // new evaluation context for function handlers
-        fd.setEvaluationContext(new EvaluationContext(null));
+        EvaluationContext ec = new EvaluationContext(null);
+        ExternalDataHandler externalDataHandlerPull = new ExternalDataHandlerPull(externalDataManager);
+        ec.addFunctionHandler(externalDataHandlerPull);
+
+        fd.setEvaluationContext(ec);
+
+        try {
+            loadExternalData(formMediaDir);
+        } catch (Exception e) {
+            mErrorMsg = e.getMessage();
+            e.printStackTrace();
+            return null;
+        }
+
+        if (isCancelled()) {
+            // that means that the user has cancelled, so no need to go further
+            return null;
+        }
 
 		// create FormEntryController from formdef
         FormEntryModel fem = new FormEntryModel(fd);
@@ -237,29 +274,49 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
             	}
             	if ( instance.exists() ) {
 	                // This order is important. Import data, then initialize.
-	                importData(instance, fec);
-	                fd.initialize(false);
-            	} else {
-            		fd.initialize(true);
+                    try {
+                        importData(instance, fec);
+                        fd.initialize(false, new InstanceInitializationFactory());
+                    } catch (RuntimeException e) {
+                        Log.e(t, e.getMessage(), e);
+
+                        // SCTO-633
+                        if (usedSavepoint && !(e.getCause() instanceof XPathTypeMismatchException)) {
+                            // this means that the .save file is corrupted or 0-sized, so don't use it.
+                            usedSavepoint = false;
+                            mInstancePath = null;
+                            fd.initialize(true, new InstanceInitializationFactory());
+                        } else {
+                            // this means that the saved instance is corrupted.
+                            throw e;
+                        }
+                    }
+                } else {
+            		fd.initialize(true, new InstanceInitializationFactory());
             	}
             } else {
-                fd.initialize(true);
+                fd.initialize(true, new InstanceInitializationFactory());
             }
         } catch (RuntimeException e) {
-            mErrorMsg = e.getMessage();
-            return null;
+            Log.e(t, e.getMessage(), e);
+            if (e.getCause() instanceof XPathTypeMismatchException) {
+                // this is a case of https://bitbucket.org/m.sundt/javarosa/commits/e5d344783e7968877402bcee11828fa55fac69de
+                // the data are imported, the survey will be unusable
+                // but we should give the option to the user to edit the form
+                // otherwise the survey will be TOTALLY inaccessible.
+                Log.w(t, "We have a syntactically correct instance, but the data threw an exception inside JR. We should allow editing.");
+            } else {
+                mErrorMsg = e.getMessage();
+                return null;
+            }
         }
-
-        // set paths to /sdcard/odk/forms/formfilename-media/
-        String formFileName = formXml.getName().substring(0, formXml.getName().lastIndexOf("."));
-        File formMediaDir = new File( formXml.getParent(), formFileName + "-media");
 
         // Remove previous forms
         ReferenceManager._().clearSession();
 
         // for itemsets.csv, we only check to see if the itemset file has been
         // updated
-        File csv = new File(formMediaDir.getAbsolutePath() + "/itemsets.csv");
+        File csv = new File(formMediaDir.getAbsolutePath() + "/" + ITEMSETS_CSV);
         String csvmd5 = null;
         if (csv.exists()) {
             csvmd5 = FileUtils.getMd5Hash(csv);
@@ -292,7 +349,7 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
                 readCSV(csv, csvmd5);
             }
         }
-        
+
         // This should get moved to the Application Class
         if (ReferenceManager._().getFactories().length == 0) {
             // this is /sdcard/odk
@@ -335,8 +392,71 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 
     }
 
+    @SuppressWarnings("unchecked")
+    private void loadExternalData(File mediaFolder) {
+        //SCTO-594
+        File[] zipFiles = mediaFolder.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                return file.getName().toLowerCase().endsWith(".zip");
+            }
+        });
+
+        if (zipFiles != null) {
+            ZipUtils.unzip(zipFiles);
+            for (File zipFile : zipFiles) {
+                boolean deleted = zipFile.delete();
+                if (!deleted) {
+                    Log.w(t, "Cannot delete " + zipFile + ". It will be re-unzipped next time. :(");
+                }
+            }
+        }
+
+        File[] csvFiles = mediaFolder.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                String lowerCaseName = file.getName().toLowerCase();
+                return lowerCaseName.endsWith(".csv") && !lowerCaseName.equalsIgnoreCase(ITEMSETS_CSV);
+            }
+        });
+
+        Map<String, File> externalDataMap = new HashMap<String, File>();
+
+        if (csvFiles != null) {
+
+            for (File csvFile : csvFiles) {
+                String dataSetName = csvFile.getName().substring(0, csvFile.getName().lastIndexOf("."));
+                externalDataMap.put(dataSetName, csvFile);
+            }
+
+            if (externalDataMap.size() > 0) {
+
+                publishProgress(Collect.getInstance().getString(R.string.survey_loading_reading_csv_message));
+
+                ExternalDataReader externalDataReader = new ExternalDataReaderImpl(this);
+                externalDataReader.doImport(externalDataMap);
+            }
+        }
+    }
+
+    public void publishExternalDataLoadingProgress(String message) {
+        publishProgress(message);
+    }
+
+    @Override
+    protected void onProgressUpdate(String... values) {
+        synchronized (this) {
+            if (mStateListener != null && values != null) {
+                if (values.length == 1) {
+                    mStateListener.onProgressStep(values[0]);
+                }
+            }
+        }
+    }
 
     public boolean importData(File instanceFile, FormEntryController fec) {
+        publishProgress(Collect.getInstance().getString(R.string.survey_loading_reading_data_message));
+
         // convert files into a byte array
         byte[] fileBytes = FileUtils.getFileAsBytes(instanceFile);
 
@@ -352,7 +472,12 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
             // populate the data model
             TreeReference tr = TreeReference.rootRef();
             tr.add(templateRoot.getName(), TreeReference.INDEX_UNBOUND);
+
+            // Here we set the Collect's implementation of the IAnswerResolver.
+            // We set it back to the default after select choices have been populated.
+            XFormParser.setAnswerResolver(new ExternalAnswerResolver());
             templateRoot.populate(savedRoot, fec.getModel().getForm());
+            XFormParser.setAnswerResolver(new DefaultAnswerResolver());
 
             // populated model to current form
             fec.getModel().getForm().getInstance().setRoot(templateRoot);
@@ -437,6 +562,14 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
         }
     }
 
+    @Override
+    protected void onCancelled() {
+        super.onCancelled();
+
+        if (externalDataManager != null) {
+            externalDataManager.close();
+        }
+    }
 
     @Override
     protected void onPostExecute(FECWrapper wrapper) {
@@ -464,6 +597,10 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 
     public FormController getFormController() {
     	return ( data != null ) ? data.getController() : null;
+    }
+
+    public ExternalDataManager getExternalDataManager() {
+        return externalDataManager;
     }
 
     public boolean hasUsedSavepoint() {
@@ -499,11 +636,9 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
 		this.resultCode = resultCode;
 		this.intent = intent;
 	}
-	
+
 	private void readCSV(File csv, String formHash) {
 
-		/*
-		 * Smap disable
         CSVReader reader;
         ItemsetDbAdapter ida = new ItemsetDbAdapter();
         ida.open();
@@ -539,7 +674,6 @@ public class FormLoaderTask extends AsyncTask<String, String, FormLoaderTask.FEC
             ida.commit();
             ida.close();
         }
-        */
     }
 
 }
