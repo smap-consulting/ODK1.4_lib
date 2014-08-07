@@ -337,7 +337,7 @@ public class InstanceUploaderList extends ListActivity implements
 		}
 		super.onActivityResult(requestCode, resultCode, intent);
 	}
-	
+
 	private void showUnsent() {
 		mShowUnsent = true;
 		Cursor c = mShowUnsent ? getUnsentCursor() : getAllCursor();
