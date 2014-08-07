@@ -23,6 +23,7 @@ import android.preference.PreferenceManager;
 
 import org.odk.collect.android.R;
 import org.odk.collect.android.database.ActivityLogger;
+import org.odk.collect.android.external.ExternalDataManager;
 import org.odk.collect.android.logic.FormController;
 import org.odk.collect.android.logic.PropertyManager;
 import org.odk.collect.android.preferences.PreferencesActivity;
@@ -45,7 +46,7 @@ public class Collect extends Application {
 
     // Storage paths
     public static final String ODK_ROOT = Environment.getExternalStorageDirectory()
-            + File.separator + "fieldTask";
+            + File.separator + "fieldTask";   // smap
     public static final String FORMS_PATH = ODK_ROOT + File.separator + "forms";
     public static final String INSTANCES_PATH = ODK_ROOT + File.separator + "instances";
     public static final String CACHE_PATH = ODK_ROOT + File.separator + ".cache";
@@ -63,6 +64,7 @@ public class Collect extends Application {
     private CredentialsProvider credsProvider = new AgingCredentialsProvider(7 * 60 * 1000);
     private ActivityLogger mActivityLogger;
     private FormController mFormController = null;
+    private ExternalDataManager externalDataManager;
 
     private static Collect singleton = null;
 
@@ -80,6 +82,14 @@ public class Collect extends Application {
 
     public void setFormController(FormController controller) {
         mFormController = controller;
+    }
+
+    public ExternalDataManager getExternalDataManager() {
+        return externalDataManager;
+    }
+
+    public void setExternalDataManager(ExternalDataManager externalDataManager) {
+        this.externalDataManager = externalDataManager;
     }
 
     public static int getQuestionFontsize() {
@@ -114,10 +124,7 @@ public class Collect extends Application {
     public static void createODKDirs() throws RuntimeException {
         String cardstatus = Environment.getExternalStorageState();
         if (!cardstatus.equals(Environment.MEDIA_MOUNTED)) {
-            RuntimeException e =
-                    new RuntimeException("ODK reports :: SDCard error: "
-                            + Environment.getExternalStorageState());
-            throw e;
+            throw new RuntimeException(Collect.getInstance().getString(R.string.sdcard_unmounted, cardstatus));
         }
 
         String[] dirs = {
