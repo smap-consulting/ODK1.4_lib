@@ -224,20 +224,37 @@ public class MainMenuActivity extends Activity {
 		String selectionArgs[] = { InstanceProviderAPI.STATUS_COMPLETE,
 				InstanceProviderAPI.STATUS_SUBMISSION_FAILED };
 
-		mFinalizedCursor = managedQuery(InstanceColumns.CONTENT_URI, null,
-				selection, selectionArgs, null);
-		startManagingCursor(mFinalizedCursor);
-		mCompletedCount = mFinalizedCursor.getCount();
-		mFinalizedCursor.registerContentObserver(mContentObserver);
+        try {
+            mFinalizedCursor = managedQuery(InstanceColumns.CONTENT_URI, null,
+                    selection, selectionArgs, null);
+        } catch (Exception e) {
+            createErrorDialog(e.getMessage(), EXIT);
+            return;
+        }
+
+    if (mFinalizedCursor != null) {
+      startManagingCursor(mFinalizedCursor);
+    }
+    mCompletedCount = mFinalizedCursor != null ? mFinalizedCursor.getCount() : 0;
+        getContentResolver().registerContentObserver(InstanceColumns.CONTENT_URI, true, mContentObserver);
+//		mFinalizedCursor.registerContentObserver(mContentObserver);
 
 		// count for finalized instances
 		String selectionSaved = InstanceColumns.STATUS + "=?";
 		String selectionArgsSaved[] = { InstanceProviderAPI.STATUS_INCOMPLETE };
 
-		mSavedCursor = managedQuery(InstanceColumns.CONTENT_URI, null,
-				selectionSaved, selectionArgsSaved, null);
-		startManagingCursor(mSavedCursor);
-		mSavedCount = mFinalizedCursor.getCount();
+        try {
+            mSavedCursor = managedQuery(InstanceColumns.CONTENT_URI, null,
+                    selectionSaved, selectionArgsSaved, null);
+        } catch (Exception e) {
+            createErrorDialog(e.getMessage(), EXIT);
+            return;
+        }
+
+    if (mSavedCursor != null) {
+      startManagingCursor(mSavedCursor);
+    }
+    mSavedCount = mSavedCursor != null ? mSavedCursor.getCount() : 0;
 		// don't need to set a content observer because it can't change in the
 		// background
 
@@ -446,25 +463,33 @@ public class MainMenuActivity extends Activity {
 	}
 
 	private void updateButtons() {
-		mFinalizedCursor.requery();
-		mCompletedCount = mFinalizedCursor.getCount();
-		if (mCompletedCount > 0) {
-			mSendDataButton.setText(getString(R.string.send_data_button,
-					mCompletedCount));
-		} else {
-			mSendDataButton.setText(getString(R.string.send_data));
-		}
+    if (mFinalizedCursor != null && !mFinalizedCursor.isClosed()) {
+      mFinalizedCursor.requery();
+      mCompletedCount = mFinalizedCursor.getCount();
+      if (mCompletedCount > 0) {
+        mSendDataButton.setText(getString(R.string.send_data_button, mCompletedCount));
+      } else {
+        mSendDataButton.setText(getString(R.string.send_data));
+      }
+    } else {
+      mSendDataButton.setText(getString(R.string.send_data));
+      Log.w(t, "Cannot update \"Send Finalized\" button label since the database is closed. Perhaps the app is running in the background?");
+    }
 
-		mSavedCursor.requery();
-		mSavedCount = mSavedCursor.getCount();
-		if (mSavedCount > 0) {
-			mReviewDataButton.setText(getString(R.string.review_data_button,
-					mSavedCount));
-		} else {
-			mReviewDataButton.setText(getString(R.string.review_data));
-		}
-
-	}
+    if (mSavedCursor != null && !mSavedCursor.isClosed()) {
+      mSavedCursor.requery();
+      mSavedCount = mSavedCursor.getCount();
+      if (mSavedCount > 0) {
+        mReviewDataButton.setText(getString(R.string.review_data_button,
+                mSavedCount));
+      } else {
+        mReviewDataButton.setText(getString(R.string.review_data));
+      }
+    } else {
+      mReviewDataButton.setText(getString(R.string.review_data));
+      Log.w(t, "Cannot update \"Edit Form\" button label since the database is closed. Perhaps the app is running in the background?");
+    }
+  }
 
 	/**
 	 * notifies us that something changed
