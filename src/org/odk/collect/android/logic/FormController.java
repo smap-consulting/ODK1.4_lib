@@ -35,12 +35,14 @@ import org.javarosa.core.model.instance.TreeElement;
 import org.javarosa.core.services.transport.payload.ByteArrayPayload;
 import org.javarosa.form.api.FormEntryCaption;
 import org.javarosa.form.api.FormEntryController;
+import org.javarosa.form.api.FormEntryModel;
 import org.javarosa.form.api.FormEntryPrompt;
 import org.javarosa.model.xform.XFormSerializingVisitor;
 import org.javarosa.model.xform.XPathReference;
 import org.javarosa.xform.parse.XFormParser;
 import org.javarosa.xpath.XPathParseTool;
 import org.javarosa.xpath.expr.XPathExpression;
+import org.odk.collect.android.exception.JavaRosaException;
 import org.odk.collect.android.views.ODKView;
 
 import android.util.Log;
@@ -96,15 +98,15 @@ public class FormController {
         mFormEntryController = fec;
         mInstancePath = instancePath;
     }
-    
+
     public FormDef getFormDef() {
         return mFormEntryController.getModel().getForm();
     }
-    
+
     public void setItemsetHash(String hash) {
         mItemsetHash = hash;
     }
-    
+
     public String getItemsetHash() {
     	return mItemsetHash;
     }
@@ -419,8 +421,12 @@ public class FormController {
      * @param data
      * @return
      */
-    public int answerQuestion(FormIndex index, IAnswerData data) {
-        return mFormEntryController.answerQuestion(index, data);
+    public int answerQuestion(FormIndex index, IAnswerData data) throws JavaRosaException {
+        try {
+            return mFormEntryController.answerQuestion(index, data);
+        } catch (Exception e) {
+           throw new JavaRosaException(e);
+        }
     }
 
     /**
@@ -428,27 +434,37 @@ public class FormController {
      * Constraints are ignored on 'jump to', so answers can be outside of constraints. We don't
      * allow saving to disk, though, until all answers conform to their constraints/requirements.
      *
+     *
      * @param markCompleted
      * @return ANSWER_OK and leave index unchanged or change index to bad value and return error type.
      */
     public int validateAnswers(Boolean markCompleted) {
-        FormIndex i = getFormIndex();
-        jumpToIndex(FormIndex.createBeginningOfFormIndex());
+        FormEntryController formEntryController = this.mFormEntryController;
+        FormEntryModel formEntryModel = formEntryController.getModel();
+
+        FormEntryModel formEntryModelToBeValidated = new FormEntryModel(formEntryModel.getForm());
+        FormEntryController formEntryControllerToBeValidated = new FormEntryController(formEntryModelToBeValidated);
+        FormController formControllerToBeValidated = new FormController(this.getMediaFolder(), formEntryControllerToBeValidated, this.getInstancePath());
+
+        formControllerToBeValidated.jumpToIndex(FormIndex.createBeginningOfFormIndex());
 
         int event;
         while ((event =
-            stepToNextEvent(FormController.STEP_INTO_GROUP)) != FormEntryController.EVENT_END_OF_FORM) {
+                formControllerToBeValidated.stepToNextEvent(FormController.STEP_INTO_GROUP)) != FormEntryController.EVENT_END_OF_FORM) {
             if (event != FormEntryController.EVENT_QUESTION) {
                 continue;
             } else {
-                int saveStatus = answerQuestion(getQuestionPrompt().getAnswerValue());
+                FormIndex formControllerToBeValidatedFormIndex = formControllerToBeValidated.getFormIndex();
+
+                int saveStatus = formControllerToBeValidated.answerQuestion(formControllerToBeValidated.getQuestionPrompt().getAnswerValue());
                 if (markCompleted && saveStatus != FormEntryController.ANSWER_OK) {
+                    // jump to the error
+                    this.jumpToIndex(formControllerToBeValidatedFormIndex);
                     return saveStatus;
                 }
             }
         }
 
-        jumpToIndex(i);
         return FormEntryController.ANSWER_OK;
     }
 
@@ -462,8 +478,12 @@ public class FormController {
      * @param data
      * @return true if saved successfully, false otherwise.
      */
-    public boolean saveAnswer(FormIndex index, IAnswerData data) {
-        return mFormEntryController.saveAnswer(index, data);
+    public boolean saveAnswer(FormIndex index, IAnswerData data) throws JavaRosaException {
+        try {
+            return mFormEntryController.saveAnswer(index, data);
+        } catch (Exception e) {
+            throw new JavaRosaException(e);
+        }
     }
 
 
@@ -472,12 +492,15 @@ public class FormController {
      * constraint checking. Only use this if you know what you're doing. For normal form filling you
      * should always use answerQuestion().
      *
-     * @param index
      * @param data
      * @return true if saved successfully, false otherwise.
      */
-    public boolean saveAnswer(IAnswerData data) {
-        return mFormEntryController.saveAnswer(data);
+    public boolean saveAnswer(IAnswerData data) throws JavaRosaException {
+        try {
+            return mFormEntryController.saveAnswer(data);
+        } catch (Exception e) {
+            throw new JavaRosaException(e);
+        }
     }
 
 
@@ -546,43 +569,47 @@ public class FormController {
      *
      * @return
      */
-    public int stepToPreviousScreenEvent() {
-        if (getEvent() != FormEntryController.EVENT_BEGINNING_OF_FORM) {
-            int event = stepToPreviousEvent();
+    public int stepToPreviousScreenEvent() throws JavaRosaException {
+        try {
+            if (getEvent() != FormEntryController.EVENT_BEGINNING_OF_FORM) {
+                int event = stepToPreviousEvent();
 
-            while (event == FormEntryController.EVENT_REPEAT_JUNCTURE ||
-            	   event == FormEntryController.EVENT_PROMPT_NEW_REPEAT ||
-            	   (event == FormEntryController.EVENT_QUESTION && indexIsInFieldList()) ||
-                   ((event == FormEntryController.EVENT_GROUP
-                     || event == FormEntryController.EVENT_REPEAT) && !indexIsInFieldList())) {
-                event = stepToPreviousEvent();
-            }
+                while (event == FormEntryController.EVENT_REPEAT_JUNCTURE ||
+                       event == FormEntryController.EVENT_PROMPT_NEW_REPEAT ||
+                       (event == FormEntryController.EVENT_QUESTION && indexIsInFieldList()) ||
+                       ((event == FormEntryController.EVENT_GROUP
+                         || event == FormEntryController.EVENT_REPEAT) && !indexIsInFieldList())) {
+                    event = stepToPreviousEvent();
+                }
 
-            // Work-around for broken field-list handling from 1.1.7 which breaks either
-            // build-generated forms or XLSForm-generated forms.  If the current group
-            // is a GROUP with field-list and it is nested within a group or repeat with just
-            // this containing group, and that is also a field-list, then return the parent group.
-            if ( getEvent() == FormEntryController.EVENT_GROUP ) {
-            	FormIndex currentIndex = getFormIndex();
-            	IFormElement element = mFormEntryController.getModel().getForm().getChild(currentIndex);
-                if (element instanceof GroupDef) {
-                	GroupDef gd = (GroupDef) element;
-                	if ( ODKView.FIELD_LIST.equalsIgnoreCase(gd.getAppearanceAttr()) ) {
-                		// OK this group is a field-list... see what the parent is...
-                		FormEntryCaption[] fclist = this.getCaptionHierarchy(currentIndex);
-                		if ( fclist.length > 1) {
-                			FormEntryCaption fc = fclist[fclist.length-2];
-                			GroupDef pd = (GroupDef) fc.getFormElement();
-                			if ( pd.getChildren().size() == 1 &&
-                				 ODKView.FIELD_LIST.equalsIgnoreCase(pd.getAppearanceAttr()) ) {
-                				mFormEntryController.jumpToIndex(fc.getIndex());
-                			}
-                		}
-                	}
+                // Work-around for broken field-list handling from 1.1.7 which breaks either
+                // build-generated forms or XLSForm-generated forms.  If the current group
+                // is a GROUP with field-list and it is nested within a group or repeat with just
+                // this containing group, and that is also a field-list, then return the parent group.
+                if ( getEvent() == FormEntryController.EVENT_GROUP ) {
+                    FormIndex currentIndex = getFormIndex();
+                    IFormElement element = mFormEntryController.getModel().getForm().getChild(currentIndex);
+                    if (element instanceof GroupDef) {
+                        GroupDef gd = (GroupDef) element;
+                        if ( ODKView.FIELD_LIST.equalsIgnoreCase(gd.getAppearanceAttr()) ) {
+                            // OK this group is a field-list... see what the parent is...
+                            FormEntryCaption[] fclist = this.getCaptionHierarchy(currentIndex);
+                            if ( fclist.length > 1) {
+                                FormEntryCaption fc = fclist[fclist.length-2];
+                                GroupDef pd = (GroupDef) fc.getFormElement();
+                                if ( pd.getChildren().size() == 1 &&
+                                     ODKView.FIELD_LIST.equalsIgnoreCase(pd.getAppearanceAttr()) ) {
+                                    mFormEntryController.jumpToIndex(fc.getIndex());
+                                }
+                            }
+                        }
+                    }
                 }
             }
+            return getEvent();
+        } catch (RuntimeException e) {
+            throw new JavaRosaException(e);
         }
-        return getEvent();
     }
 
     /**
@@ -593,38 +620,42 @@ public class FormController {
      *
      * @return
      */
-    public int stepToNextScreenEvent() {
-        if (getEvent() != FormEntryController.EVENT_END_OF_FORM) {
-            int event;
-            group_skip: do {
-                event = stepToNextEvent(FormController.STEP_OVER_GROUP);
-                switch (event) {
-                    case FormEntryController.EVENT_QUESTION:
-                    case FormEntryController.EVENT_END_OF_FORM:
-                        break group_skip;
-                    case FormEntryController.EVENT_PROMPT_NEW_REPEAT:
-                        break group_skip;
-                    case FormEntryController.EVENT_GROUP:
-                    case FormEntryController.EVENT_REPEAT:
-                        if (indexIsInFieldList()
-                                && getQuestionPrompts().length != 0) {
+    public int stepToNextScreenEvent() throws JavaRosaException {
+        try {
+            if (getEvent() != FormEntryController.EVENT_END_OF_FORM) {
+                int event;
+                group_skip: do {
+                    event = stepToNextEvent(FormController.STEP_OVER_GROUP);
+                    switch (event) {
+                        case FormEntryController.EVENT_QUESTION:
+                        case FormEntryController.EVENT_END_OF_FORM:
                             break group_skip;
-                        }
-                        // otherwise it's not a field-list group, so just skip it
-                        break;
-                    case FormEntryController.EVENT_REPEAT_JUNCTURE:
-                        Log.i(t, "repeat juncture: "
-                                + getFormIndex().getReference());
-                        // skip repeat junctures until we implement them
-                        break;
-                    default:
-                        Log.w(t,
-                            "JavaRosa added a new EVENT type and didn't tell us... shame on them.");
-                        break;
-                }
-            } while (event != FormEntryController.EVENT_END_OF_FORM);
+                        case FormEntryController.EVENT_PROMPT_NEW_REPEAT:
+                            break group_skip;
+                        case FormEntryController.EVENT_GROUP:
+                        case FormEntryController.EVENT_REPEAT:
+                            if (indexIsInFieldList()
+                                    && getQuestionPrompts().length != 0) {
+                                break group_skip;
+                            }
+                            // otherwise it's not a field-list group, so just skip it
+                            break;
+                        case FormEntryController.EVENT_REPEAT_JUNCTURE:
+                            Log.i(t, "repeat juncture: "
+                                    + getFormIndex().getReference());
+                            // skip repeat junctures until we implement them
+                            break;
+                        default:
+                            Log.w(t,
+                                "JavaRosa added a new EVENT type and didn't tell us... shame on them.");
+                            break;
+                    }
+                } while (event != FormEntryController.EVENT_END_OF_FORM);
+            }
+            return getEvent();
+        } catch (RuntimeException e) {
+            throw new JavaRosaException(e);
         }
-        return getEvent();
     }
 
 
@@ -681,7 +712,7 @@ public class FormController {
      * @param evaluateConstraints
      * @return FailedConstraint of first failed constraint or null if all questions were saved.
      */
-    public FailedConstraint saveAllScreenAnswers(LinkedHashMap<FormIndex,IAnswerData> answers, boolean evaluateConstraints) {
+    public FailedConstraint saveAllScreenAnswers(LinkedHashMap<FormIndex,IAnswerData> answers, boolean evaluateConstraints) throws JavaRosaException {
     	if (currentPromptIsQuestion()) {
             Iterator<FormIndex> it = answers.keySet().iterator();
             while (it.hasNext()) {
@@ -900,11 +931,13 @@ public class FormController {
     	// look for the text under the requiredMsg bind attribute
 		String constraintText = getBindAttribute(index, XFormParser.NAMESPACE_JAVAROSA, "requiredMsg");
 		if (constraintText != null) {
-	    	XPathExpression xPathRequiredMsg = null;
+	    	XPathExpression xPathRequiredMsg;
 			try {
 				xPathRequiredMsg = XPathParseTool.parseXPath("string(" + constraintText + ")");
 			} catch(Exception e) {
-				//Expected in probably most cases.
+				// Expected in probably most cases.
+                // This is a string literal, so no need to evaluate anything.
+                return constraintText;
 			}
 
 			if(xPathRequiredMsg != null) {
