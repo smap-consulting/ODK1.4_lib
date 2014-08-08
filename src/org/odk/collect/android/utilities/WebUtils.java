@@ -28,6 +28,7 @@ import java.util.TimeZone;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.http.HttpStatus;
+
 import org.kxml2.io.KXmlParser;
 import org.kxml2.kdom.Document;
 import org.odk.collect.android.application.Collect;
@@ -61,6 +62,7 @@ import org.opendatakit.httpclientandroidlib.params.HttpConnectionParams;
 import org.opendatakit.httpclientandroidlib.params.HttpParams;
 import org.opendatakit.httpclientandroidlib.protocol.HttpContext;
 import org.xmlpull.v1.XmlPullParser;
+
 
 import android.content.SharedPreferences;
 import android.net.Uri;
