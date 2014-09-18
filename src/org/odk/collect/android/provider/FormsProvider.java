@@ -48,7 +48,7 @@ public class FormsProvider extends ContentProvider {
 	private static final String t = "FormsProvider";
 
 	private static final String DATABASE_NAME = "forms.db";
-	private static final int DATABASE_VERSION = 4;
+	private static final int DATABASE_VERSION = 5;	// smap must be greater than 4
 	private static final String FORMS_TABLE_NAME = "forms";
 
 	private static HashMap<String, String> sFormsProjectionMap;
@@ -85,6 +85,8 @@ public class FormsProvider extends ContentProvider {
 					+ " text not null, "
 					+ FormsColumns.JR_VERSION
 					+ " text, "
+					+ FormsColumns.PROJECT		// smap
+					+ " text, "					// smap
 					+ FormsColumns.MD5_HASH
 					+ " text not null, "
 					+ FormsColumns.DATE
@@ -108,6 +110,8 @@ public class FormsProvider extends ContentProvider {
 				onCreate(db);
 				return;
 			} else {
+				Log.w(t, "Upgrading database from version " + oldVersion		// smap
+						+ " to " + newVersion);
 				// adding BASE64_RSA_PUBLIC_KEY and changing type and name of
 				// integer MODEL_VERSION to text VERSION
 				db.execSQL("DROP TABLE IF EXISTS " + TEMP_FORMS_TABLE_NAME);
@@ -137,9 +141,11 @@ public class FormsProvider extends ContentProvider {
 						+ ", "
 						+ FormsColumns.SUBMISSION_URI
 						+ ", "
-						+ FormsColumns.JR_VERSION
-						+ ", "
-						+ ((oldVersion != 3) ? ""
+						+ ((oldVersion > 3) ? ""					// smap
+								: (FormsColumns.JR_VERSION + ", "))	// smap
+						+ ((oldVersion < 5) ? ""					// smap
+								: (FormsColumns.PROJECT + ", "))	// smap
+						+ ((oldVersion < 4) ? ""					// smap
 								: (FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "))
 						+ FormsColumns.JRCACHE_FILE_PATH
 						+ ") SELECT "
@@ -165,13 +171,18 @@ public class FormsProvider extends ContentProvider {
 						+ ", "
 						+ FormsColumns.SUBMISSION_URI
 						+ ", "
-						+ "CASE WHEN "
-						+ MODEL_VERSION
-						+ " IS NOT NULL THEN "
-						+ "CAST("
-						+ MODEL_VERSION
-						+ " AS TEXT) ELSE NULL END, "
-						+ ((oldVersion != 3) ? ""
+						+ ((oldVersion > 3) ? ""							// smap
+								: (		
+										"CASE WHEN "		// smap
+										+ MODEL_VERSION
+										+ " IS NOT NULL THEN "
+										+ "CAST("
+										+ MODEL_VERSION
+										+ " AS TEXT) ELSE NULL END, "
+								))
+						+ ((oldVersion < 5) ? ""						// smap
+								: (FormsColumns.PROJECT + ", "))		// smap
+						+ ((oldVersion < 4) ? ""						// smap
 								: (FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "))
 						+ FormsColumns.JRCACHE_FILE_PATH + " FROM "
 						+ FORMS_TABLE_NAME);
@@ -201,6 +212,7 @@ public class FormsProvider extends ContentProvider {
 						+ FormsColumns.LANGUAGE + ", "
 						+ FormsColumns.SUBMISSION_URI + ", "
 						+ FormsColumns.JR_VERSION + ", "
+						+ FormsColumns.PROJECT + ", "				// smap
 						+ FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "
 						+ FormsColumns.JRCACHE_FILE_PATH + ") SELECT "
 						+ FormsColumns._ID + ", "
@@ -221,6 +233,7 @@ public class FormsProvider extends ContentProvider {
 						+ FormsColumns.LANGUAGE + ", "
 						+ FormsColumns.SUBMISSION_URI + ", "
 						+ FormsColumns.JR_VERSION + ", "
+						+ FormsColumns.PROJECT + ", "				// smap
 						+ FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "
 						+ FormsColumns.JRCACHE_FILE_PATH + " FROM "
 						+ TEMP_FORMS_TABLE_NAME);
@@ -712,6 +725,8 @@ public class FormsProvider extends ContentProvider {
 				FormsColumns.JR_FORM_ID);
 		sFormsProjectionMap.put(FormsColumns.JR_VERSION,
 				FormsColumns.JR_VERSION);
+		sFormsProjectionMap.put(FormsColumns.PROJECT,		// smap
+				FormsColumns.PROJECT);						// smap
 		sFormsProjectionMap.put(FormsColumns.SUBMISSION_URI,
 				FormsColumns.SUBMISSION_URI);
 		sFormsProjectionMap.put(FormsColumns.BASE64_RSA_PUBLIC_KEY,

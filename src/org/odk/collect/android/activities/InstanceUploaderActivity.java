@@ -107,7 +107,9 @@ public class InstanceUploaderActivity extends Activity implements InstanceUpload
             // get instances to upload...
             Intent intent = getIntent();
             selectedInstanceIDs = intent.getLongArrayExtra(FormEntryActivity.KEY_INSTANCES);
+            Log.i("smap test", "got selected instance array: ");
         }
+        Log.i("smap test", "selectedInstanceIds length is: " + selectedInstanceIDs.length);
 
         mInstancesToSend = new Long[(selectedInstanceIDs == null) ? 0 : selectedInstanceIDs.length];
         if ( selectedInstanceIDs != null ) {

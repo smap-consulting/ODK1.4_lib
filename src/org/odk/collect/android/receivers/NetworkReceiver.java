@@ -22,6 +22,7 @@ import android.net.Uri;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 
 public class NetworkReceiver extends BroadcastReceiver implements InstanceUploaderListener {
 
@@ -60,7 +61,7 @@ public class NetworkReceiver extends BroadcastReceiver implements InstanceUpload
 					uploadForms(context);
 				}
 			}
-		}
+		}  																		
 	}
 
 	private boolean interfaceIsEnabled(Context context,
@@ -80,6 +81,7 @@ public class NetworkReceiver extends BroadcastReceiver implements InstanceUpload
 
 
     private void uploadForms(Context context) {
+    	Log.i(getClass().getSimpleName(), "uploadForms: " + running);
         if (!running) {
         	mContext = context;			// smap
             running = true;
@@ -124,6 +126,7 @@ public class NetworkReceiver extends BroadcastReceiver implements InstanceUpload
 
 	                Long[] toSendArray = new Long[toUpload.size()];
 	                toUpload.toArray(toSendArray);
+	                Log.i(getClass().getSimpleName(), "Submitting " + toUpload.size() + " forms");
 	                mInstanceUploaderTask.execute(toSendArray);
 	            } else {
 	                running = false;

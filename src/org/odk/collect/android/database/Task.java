@@ -9,6 +9,7 @@ public class Task {
 	public String title;
 	public String url;
 	public String form_id;
+	public int form_version;
 	public String initial_data;
 	public String assignment_mode;
 	public boolean gps;
