@@ -502,7 +502,7 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
 
     // TODO: This method is like 350 lines long, down from 400.
     // still. ridiculous. make it smaller.
-    protected Outcome doInBackground(Long... values) {
+    public Outcome doInBackground(Long... values) {		// smap make public
     	Outcome outcome = new Outcome();
 
         String selection = InstanceColumns._ID + "=?";
