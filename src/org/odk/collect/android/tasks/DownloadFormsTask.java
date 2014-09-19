@@ -80,7 +80,7 @@ public class DownloadFormsTask extends
 
 
     @Override
-    protected HashMap<FormDetails, String> doInBackground(ArrayList<FormDetails>... values) {
+    public HashMap<FormDetails, String> doInBackground(ArrayList<FormDetails>... values) {		// smap make public
         ArrayList<FormDetails> toDownload = values[0];
 
         int total = toDownload.size();
@@ -253,6 +253,7 @@ public class DownloadFormsTask extends
                 v.put(FormsColumns.DISPLAY_NAME, formInfo.get(FileUtils.TITLE));
                 v.put(FormsColumns.JR_VERSION, formInfo.get(FileUtils.VERSION));
                 v.put(FormsColumns.JR_FORM_ID, formInfo.get(FileUtils.FORMID));
+                v.put(FormsColumns.PROJECT, formInfo.get(FileUtils.PROJECT));		// smap
                 v.put(FormsColumns.SUBMISSION_URI, formInfo.get(FileUtils.SUBMISSIONURI));
                 v.put(FormsColumns.BASE64_RSA_PUBLIC_KEY, formInfo.get(FileUtils.BASE64_RSA_PUBLIC_KEY));
                 uri =
