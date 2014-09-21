@@ -41,9 +41,11 @@ import org.odk.collect.android.utilities.EncryptionUtils.EncryptedFormInformatio
 import org.odk.collect.android.utilities.FileUtils;
 
 import android.content.ContentValues;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 /**
@@ -264,6 +266,8 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
         } finally {
             fda.close();
         }
+		Intent intent = new Intent("refresh");
+	    LocalBroadcastManager.getInstance(Collect.getInstance()).sendBroadcast(intent);
     }
     // ----------- SMAP end
     
