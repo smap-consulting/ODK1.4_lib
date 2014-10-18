@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Smap-Suite
+ * Copyright (C) 2014 Smap Consulting
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -104,6 +104,34 @@ public final class STFileUtils {
     }
 
 
+    /**
+     * Get the source from the URL of the server
+     * 
+     * @param url of the server
+     * @return source
+     */
+    public static String getSource(String url) {
+      
+        String source = null;
+        // Remove the protocol
+        if(url.startsWith("http")) {
+        	int idx = url.indexOf("//");
+        	if(idx > 0) {
+        		source = url.substring(idx + 2);
+        	} else {
+        		source = url;
+        	}
+        }
+        // Only return the domain
+        if(source.contains("/")) {
+        	int idx = source.indexOf("/");
+        	if(idx > 0) {
+        		source = source.substring(0, idx);
+        	} 
+        }
+        return source;
+    }
+    
     /*
      * Create a new instance file
      */

@@ -156,6 +156,7 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
 
     private void updateInstanceDatabase(boolean incomplete, boolean canEditAfterCompleted) {
 
+    	String source = null;
         FormController formController = Collect.getInstance().getFormController();
 
         // Update the instance database...
@@ -209,6 +210,7 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
                 	c = Collect.getInstance().getContentResolver().query(mUri, null, null, null, null);
 	                c.moveToFirst();
 	                String jrformid = c.getString(c.getColumnIndex(FormsColumns.JR_FORM_ID));
+	                source = c.getString(c.getColumnIndex(FormsColumns.SOURCE));				// smap
 	                String jrversion = c.getString(c.getColumnIndex(FormsColumns.JR_VERSION));
 	                String formname = c.getString(c.getColumnIndex(FormsColumns.DISPLAY_NAME));
 	                String submissionUri = null;
@@ -225,6 +227,7 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
 	                    values.put(InstanceColumns.DISPLAY_NAME, formname);
 	                }
 	                values.put(InstanceColumns.JR_FORM_ID, jrformid);
+	                values.put(InstanceColumns.SOURCE, source);			// smap
 	                values.put(InstanceColumns.JR_VERSION, jrversion);
                 } finally {
                     if ( c != null ) {
@@ -235,11 +238,11 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
                 			.insert(InstanceColumns.CONTENT_URI, values);
             }
         }
-        updateSmapTaskStatus();	// SMAP
+        updateSmapTaskStatus(source);	// SMAP
     }
 
     // ----------- SMAP start
-    private void updateSmapTaskStatus() {
+    private void updateSmapTaskStatus(String source) {
         FileDbAdapter fda = new FileDbAdapter();
         FormController formController = Collect.getInstance().getFormController();
         try {
@@ -250,14 +253,14 @@ public class SaveToDiskTask extends AsyncTask<Void, String, SaveResult> {
                 TaskAssignment ta = new TaskAssignment();
                 ta.task = new Task();
                 ta.assignment = new Assignment();
-                ta.task.title = "local " + mInstanceName;
+                ta.task.title = source + " : " + mInstanceName;
                 ta.task.scheduled_at = new Date();
                 if(mMarkCompleted) {
                 	ta.assignment.assignment_status = "completed";
                 } else {
                 	ta.assignment.assignment_status = "accepted";
                 }
-                mTaskId = fda.createTask(-1, "local", ta, mFormPath, formController.getInstancePath().getAbsolutePath());       	 
+                mTaskId = fda.createTask(-1, source, ta, mFormPath, formController.getInstancePath().getAbsolutePath());       	 
         	}
         	fda.updateTask(mTaskId, formController.getInstancePath().getAbsolutePath(), mMarkCompleted);	// Update task store with instance path and status
         	

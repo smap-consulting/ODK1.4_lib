@@ -46,7 +46,7 @@ public class InstanceProvider extends ContentProvider {
     private static final String t = "InstancesProvider";
 
     private static final String DATABASE_NAME = "instances.db";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;		// smap
     private static final String INSTANCES_TABLE_NAME = "instances";
 
     private static HashMap<String, String> sInstancesProjectionMap;
@@ -76,6 +76,7 @@ public class InstanceProvider extends ContentProvider {
                + InstanceColumns.INSTANCE_FILE_PATH + " text not null, "
                + InstanceColumns.JR_FORM_ID + " text not null, "
                + InstanceColumns.JR_VERSION + " text, "
+               + InstanceColumns.SOURCE + " text, "		// smap
                + InstanceColumns.STATUS + " text not null, "
                + InstanceColumns.LAST_STATUS_CHANGE_DATE + " date not null, "
                + InstanceColumns.DISPLAY_SUBTEXT + " text not null );");
@@ -97,6 +98,10 @@ public class InstanceProvider extends ContentProvider {
         	if ( oldVersion == 2 ) {
         		db.execSQL("ALTER TABLE " + INSTANCES_TABLE_NAME + " ADD COLUMN " +
     					InstanceColumns.JR_VERSION + " text;");
+        	}
+        	if ( oldVersion < 4 ) {
+        		db.execSQL("ALTER TABLE " + INSTANCES_TABLE_NAME + " ADD COLUMN " +
+    					InstanceColumns.SOURCE + " text;");
         	}
             Log.w(t, "Successfully upgraded database from version " + initialVersion + " to " + newVersion
                     + ", without destroying all the old data");

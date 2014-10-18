@@ -48,7 +48,7 @@ public class FormsProvider extends ContentProvider {
 	private static final String t = "FormsProvider";
 
 	private static final String DATABASE_NAME = "forms.db";
-	private static final int DATABASE_VERSION = 5;	// smap must be greater than 4
+	private static final int DATABASE_VERSION = 6;	// smap must be greater than 4
 	private static final String FORMS_TABLE_NAME = "forms";
 
 	private static HashMap<String, String> sFormsProjectionMap;
@@ -86,6 +86,8 @@ public class FormsProvider extends ContentProvider {
 					+ FormsColumns.JR_VERSION
 					+ " text, "
 					+ FormsColumns.PROJECT		// smap
+					+ " text, "					// smap
+					+ FormsColumns.SOURCE		// smap
 					+ " text, "					// smap
 					+ FormsColumns.MD5_HASH
 					+ " text not null, "
@@ -145,6 +147,8 @@ public class FormsProvider extends ContentProvider {
 								: (FormsColumns.JR_VERSION + ", "))	// smap
 						+ ((oldVersion < 5) ? ""					// smap
 								: (FormsColumns.PROJECT + ", "))	// smap
+						+ ((oldVersion < 6) ? ""					// smap
+								: (FormsColumns.SOURCE + ", "))	// smap
 						+ ((oldVersion < 4) ? ""					// smap
 								: (FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "))
 						+ FormsColumns.JRCACHE_FILE_PATH
@@ -182,6 +186,8 @@ public class FormsProvider extends ContentProvider {
 								))
 						+ ((oldVersion < 5) ? ""						// smap
 								: (FormsColumns.PROJECT + ", "))		// smap
+						+ ((oldVersion < 6) ? ""						// smap
+								: (FormsColumns.SOURCE + ", "))			// smap
 						+ ((oldVersion < 4) ? ""						// smap
 								: (FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "))
 						+ FormsColumns.JRCACHE_FILE_PATH + " FROM "
@@ -213,6 +219,7 @@ public class FormsProvider extends ContentProvider {
 						+ FormsColumns.SUBMISSION_URI + ", "
 						+ FormsColumns.JR_VERSION + ", "
 						+ FormsColumns.PROJECT + ", "				// smap
+						+ FormsColumns.SOURCE + ", "				// smap
 						+ FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "
 						+ FormsColumns.JRCACHE_FILE_PATH + ") SELECT "
 						+ FormsColumns._ID + ", "
@@ -234,6 +241,7 @@ public class FormsProvider extends ContentProvider {
 						+ FormsColumns.SUBMISSION_URI + ", "
 						+ FormsColumns.JR_VERSION + ", "
 						+ FormsColumns.PROJECT + ", "				// smap
+						+ FormsColumns.SOURCE + ", "				// smap
 						+ FormsColumns.BASE64_RSA_PUBLIC_KEY + ", "
 						+ FormsColumns.JRCACHE_FILE_PATH + " FROM "
 						+ TEMP_FORMS_TABLE_NAME);
@@ -727,6 +735,8 @@ public class FormsProvider extends ContentProvider {
 				FormsColumns.JR_VERSION);
 		sFormsProjectionMap.put(FormsColumns.PROJECT,		// smap
 				FormsColumns.PROJECT);						// smap
+		sFormsProjectionMap.put(FormsColumns.SOURCE,		// smap
+				FormsColumns.SOURCE);						// smap
 		sFormsProjectionMap.put(FormsColumns.SUBMISSION_URI,
 				FormsColumns.SUBMISSION_URI);
 		sFormsProjectionMap.put(FormsColumns.BASE64_RSA_PUBLIC_KEY,

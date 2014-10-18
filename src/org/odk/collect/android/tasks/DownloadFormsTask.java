@@ -36,6 +36,7 @@ import org.odk.collect.android.preferences.PreferencesActivity;
 import org.odk.collect.android.provider.FormsProviderAPI.FormsColumns;
 import org.odk.collect.android.utilities.DocumentFetchResult;
 import org.odk.collect.android.utilities.FileUtils;
+import org.odk.collect.android.utilities.STFileUtils;		// smap
 import org.odk.collect.android.utilities.WebUtils;
 import org.opendatakit.httpclientandroidlib.Header;
 import org.opendatakit.httpclientandroidlib.HttpEntity;
@@ -139,7 +140,7 @@ public class DownloadFormsTask extends
                 // install everything
                 UriResult uriResult = null;
                 try {
-                    uriResult = findExistingOrCreateNewUri(fileResult.getFile());
+                    uriResult = findExistingOrCreateNewUri(fileResult.getFile(), STFileUtils.getSource(fd.downloadUrl));
                     Log.w(t, "Form uri = " + uriResult.getUri() + ", isNew = " + uriResult.isNew());
 
                     // move the media files in the media folder
@@ -213,7 +214,7 @@ public class DownloadFormsTask extends
      * @return a {@link org.odk.collect.android.tasks.DownloadFormsTask.UriResult} object
      * @throws TaskCancelledException if the user cancels the task during the download.
      */
-    private UriResult findExistingOrCreateNewUri(File formFile) throws TaskCancelledException {
+    private UriResult findExistingOrCreateNewUri(File formFile, String source) throws TaskCancelledException {		// smap add source as a parameter
         Cursor cursor = null;
         Uri uri = null;
         String mediaPath;
@@ -254,6 +255,7 @@ public class DownloadFormsTask extends
                 v.put(FormsColumns.JR_VERSION, formInfo.get(FileUtils.VERSION));
                 v.put(FormsColumns.JR_FORM_ID, formInfo.get(FileUtils.FORMID));
                 v.put(FormsColumns.PROJECT, formInfo.get(FileUtils.PROJECT));		// smap
+                v.put(FormsColumns.SOURCE, source);									// smap
                 v.put(FormsColumns.SUBMISSION_URI, formInfo.get(FileUtils.SUBMISSIONURI));
                 v.put(FormsColumns.BASE64_RSA_PUBLIC_KEY, formInfo.get(FileUtils.BASE64_RSA_PUBLIC_KEY));
                 uri =
